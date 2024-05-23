@@ -1,0 +1,178 @@
+LiquidityMarketplace.initializeDeal
+├── when the loan duration is less than 1
+│   └── it should revert
+├── when the checkLiquidityOwner returns false
+│   └── it should revert
+├── when the interest rate is less than 1
+│   └── it should revert
+├── when the deal amount is less than 1
+│   └── it should revert
+└── when the deal amount is more than 0
+    ├── it should create new Deal
+    ├── it should emit DealInitialized event
+    ├── it should add created dealId to user deals mapping
+    └── it should increase dealId
+
+LiquidityMarketplace.activateDeal
+├── given deal borrower is equal to zero address
+│   └── it should revert
+├── when the checkLiquidityOwner returns false
+│   └── it should revert
+└── when the checkLiquidityOwner returns true
+    ├── it should set the deal isActive statement to true
+    └── it should emit DealActivated event
+
+LiquidityMarketplace.makeDeal
+├── given the deal is active statement returns false
+│   └── it should revert
+├── given the lender not equals to zero address
+│   └── it should revert
+├── given the borrower equals to caller
+│   └── it should revert
+├── when the msg.value less than given deal amount it should revert
+│   └── it should revert
+└── when the msg.value equal or more than given deal amount
+    ├── it should set deal lender to the caller
+    ├── it should set deal startime to the current timestamp
+    ├── it should set fee amount
+    ├── it should revert if transfer to the fee receiver failed
+    ├── it should revert if transfer to the borrower failed
+    └── it should emit DealMade event
+
+LiquidityMarketplace.cancelDeal
+├── when the caller is not equal given borrower
+│   └── it should revert
+├── given lender is not equal to address zero it should revert
+│   └── it should revert
+└── given lender is equal to address zero
+    ├── it should get the lock id from call to the liquidityLocker
+    ├── it should transfer locked LP ownership to the caller
+    └── it should delete the deal
+
+LiquidityMarketplace.repayLoan
+├── given the deal is alredy paid
+│   └── it should revert
+├── when the caller is not equal given borrower
+│   └── it should revert
+├── given start time and loan duration is less than current timestamp
+│   └── it should revert
+└── given start time and loan duration is more than current timestamp
+    ├── it should set repaid status to true
+    ├── it should get the lockId from call to the liquidityLocker
+    ├── it should transfer locked LP ownership to caller
+    ├── it should revert if transfer to the lender failed
+    └── it should emit DealMade event
+
+LiquidityMarketplace.claimCollateral
+├── when the caller is not equal given lender
+│   └── it should revert
+├── given start time and loan duration is more than current timestamp
+│   └── it should revert
+└── given start time and loan duration is less than current timestamp
+    ├── it should get the lockId from call to the liquidityLocker
+    ├── it should transfer locked LP ownership to caller
+    └── it should emit CollateralClaimed event
+
+///////////////////
+/////AUCTIONS/////
+/////////////////
+
+LiquidityMarketplace.startAuction
+├── when the duration less than 1
+│   └── it should revert
+├── when the checkLiquidityOwner returns false
+│   └── it should revert
+├── when the imeddiatelySellPrice less than 1
+│   └── it should revert
+└── when the imeddiatelySellPrice equal or more than 1
+    ├── it should emit AuctionStarted event
+    ├── it should add created dealId to user deals mapping
+    └── it should increase AuctionId
+
+LiquidityMarketplace.activateAuction
+├── given auction is active it should revert
+│   └── it should revert
+├── given auction owner is not equal zero address
+│   └── it should revert
+├── given the checkLiquidityOwner returns false
+│   └── it should revert
+└── given the checkLiquidityOwner returns true
+    ├── it should set the auction.isActive to true
+    ├── it should set the auction.startTime to current timestamp
+    └── it should emit the AuctionActivated event
+
+LiquidityMarketplace.immediatelyBuy
+├── Given the immediatelySell statement is false
+│   └── it should revert
+├── Given the auction.owner is equal to caller
+│   └── it should revert
+├── When ether amount less than auction.imeddiatelySellPrice
+│   └── it should revert
+├── Given auction.isFinishedImmediately is true
+│   └── it should revert
+├── Given auction.isActive is false
+│   └── it should revert
+├── Given auction.startTime and auction.duration is less than current timestamp
+│   └── it should revert
+└── Given auction.startTime and auction.duration is more than current timestamp
+    ├── it should set the auction.isFinishedImmediately to true
+    ├── it should set the auction.highestBidOwner to address zero
+    ├── it should revert if transfer to the fee receiver is failed
+    ├── it should revert if transfer to the auction owner is failed
+    └── it should emit the ImmediatelyBought event
+
+LiquidityMarketplace.makeBid
+├── given auction.isFinishedImmediately is true
+│   └── it should revert
+├── given auction.isActive is false
+│   └── it should revert
+├── given auction.startTime and auction.duration is less than current timestamp
+│   └── it should revert
+├── given the auction.owner is equal to caller
+│   └── it should revert
+├── when bid less than previous bid plus bid step it should revert
+│   └── it should revert
+└── when bid more than previous bid plus bid step
+    ├── it should set caller bid
+    ├── it should set auction.highestBidOwner to the caller
+    └── it should emit the BidMade event
+
+LiquidityMarketplace.withdrawAuctionLiquidity
+# given auction.startTime and auction.duration is more than current timestamp
+## it should revert
+# given auction.highestBidOwner is not equal to address zero or given auction.isFinishedImmediately is true
+## it should revert
+# given the auction.owner is not equal to caller
+## it should revert
+
+LiquidityMarketplace.claimAuction
+# given auction.isFinishedImmediately is false or given auction.startTime and auction.duration is more than current timestamp
+## it should revert
+# given auction.highestBidOwner not equals to caller
+## it should revert
+# given auction.isFinishedImmediately is true
+## it should revert
+# given auction.isFinishedImmediately is false
+## it should emit the AuctionWon event
+
+LiquidityMarketplace.claimAuctionReward
+# given auction.isFinishedImmediately is true
+## it should revert
+# given auction.startTime and auction.duration is more than current timestamp
+## it should revert
+# given auction.owner is not equal to caller
+## it should revert
+# given auction.owner is equal to caller
+## it should revert if transfer to the fee receiver is failed
+## it should revert if transfer to the caller is failed
+## it should emit the AuctionRewardClaimed event
+
+LiquidityMarketplace.withdrawBid
+# given auction.highestBidOwner equals to caller
+## it should revert
+# given bidAmount less than 1
+## it should revert
+# given bidAmount equal or more than 1
+## it should revert if transfer to the caller is failed
+## it should set caller bid to 0
+## it should emit the BidWithdrawn event

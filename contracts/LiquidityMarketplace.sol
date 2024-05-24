@@ -5,7 +5,7 @@
 // OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
 
 pragma solidity ^0.8.0;
-
+import {Test, console} from "forge-std/Test.sol";
 /**
  * @dev Provides information about the current execution context, including the
  * sender of the transaction and its data. While these are generally available
@@ -153,6 +153,7 @@ contract LiquidityMarketplace is Ownable {
         bool isActive;
     }
 
+//@audit: startPrice not used
     struct Auction {
         address owner;
         address highestBidOwner;
@@ -171,7 +172,7 @@ contract LiquidityMarketplace is Ownable {
     mapping(address => uint256[]) private userDeals;
     mapping(address => uint256[]) private userAuction;
 
-    mapping(uint256 => mapping(address => uint256)) bids;
+    mapping(uint256 => mapping(address => uint256)) public bids; //why not public?
     mapping(uint256 => Auction) public auctions;
     mapping(uint256 => Deal) public deals;
     uint256 public nextAuctionId;
@@ -287,7 +288,7 @@ contract LiquidityMarketplace is Ownable {
     ) external view returns (uint256[] memory) {
         return userDeals[_address];
     }
-
+//why not userAuctionS
     function getUserAuction(
         address _address
     ) external view returns (uint256[] memory) {
@@ -635,6 +636,10 @@ contract LiquidityMarketplace is Ownable {
         //# given the auction.owner is equal to caller it should revert
         require(auction.owner != msg.sender, "Sender is auction owner");
         //# when bid lower than previous bid plus bid step it should revert
+        console.log(bids[auctionId][msg.sender]);
+        console.log(bids[auctionId][msg.sender] + msg.value);
+        console.log(bids[auctionId][auction.highestBidOwner]);
+        console.log(bids[auctionId][auction.highestBidOwner] + auction.bidStep);
         require(
             bids[auctionId][msg.sender] + msg.value >=
                 bids[auctionId][auction.highestBidOwner] + auction.bidStep,
@@ -647,7 +652,7 @@ contract LiquidityMarketplace is Ownable {
         // ## it should emit the BidMade event
         emit BidMade(auctionId, msg.sender, msg.value, block.timestamp);
     }
-
+    //owner gets lock back - nobody bets and auc ends
     function withdrawAuctionLiquidity(uint256 auctionId) public {
         Auction storage auction = auctions[auctionId];
         //# given auction.startTime and auction.duration is more than current timestamp it should revert
@@ -661,7 +666,8 @@ contract LiquidityMarketplace is Ownable {
             auction.highestBidOwner == address(0) ||
                 !auction.isFinishedImmediately,
             "Not claimable"
-        );
+        ); //@audit: exploit here, auction owner can withdraw LP and Funds from top bidder
+
         //# given the auction.owner is not equal to caller it should revert
         require(msg.sender == auction.owner, "Caller is not auction owner");
 
@@ -678,6 +684,7 @@ contract LiquidityMarketplace is Ownable {
         );
     }
 //why don't have claimed state?
+//highest bid user gets his LP after auc ends
     function claimAuction(uint256 auctionId) public {
         Auction memory auction = auctions[auctionId];
         //# given auction.isFinishedImmediately is false it should revert or
@@ -709,6 +716,7 @@ contract LiquidityMarketplace is Ownable {
         emit AuctionWon(auctionId, msg.sender);
     }
 
+    //owner get highest bet
     function claimAuctionReward(uint256 auctionId) external {
         Auction memory auction = auctions[auctionId];
         //# given auction.isFinishedImmediately is true it should revert or
@@ -740,6 +748,7 @@ contract LiquidityMarketplace is Ownable {
         );
     }
 
+    //user claim his not highest bet after auc ends
     function withdrawBid(uint256 auctionId) external {
         Auction storage auction = auctions[auctionId];
         uint256 bidAmount = bids[auctionId][msg.sender];

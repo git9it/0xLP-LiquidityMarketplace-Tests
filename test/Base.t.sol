@@ -13,10 +13,13 @@ contract LiquidityMarketplaceTest is Test {
     LiqudityLockerMock public liqLockMockSC;
     ILiquidityLocker public liqLockerSC;
     uint256 ownerFee = 1000;
-    address FEE_RECEIVER = makeAddr('feeReceiver'); //vm.addr(1234);
+    address FEE_RECEIVER = makeAddr('feeReceiver');
     address BORROWER = makeAddr('borrower');
     address LENDER = makeAddr('lender');
     address RANDOMGUY = makeAddr('randomGuy');
+    address LP_SELLER = makeAddr('lpSeller');
+    address LP_BUYER = makeAddr('lpBuyer');
+    address LP_BUYER_2 = makeAddr('lpBuyer2');
     
         bytes4 setUnsuccessfulPath = bytes4(keccak256("setUnsuccessfulPath()"));
         bytes4 setSuccessfulPath = bytes4(keccak256("setSuccessfulPath()"));
@@ -45,7 +48,8 @@ contract LiquidityMarketplaceTest is Test {
 
 vm.deal(LENDER, 1 ether);
 vm.deal(BORROWER, 1 ether);
-
+vm.deal(LP_BUYER, 1 ether);
+vm.deal(LP_BUYER_2, 1 ether);
     }
 
 
@@ -90,6 +94,18 @@ address(liqLockerSC).call(abi.encodeWithSelector(setSuccessfulPath));
 
     modifier useBorrower(){
         vm.startPrank(BORROWER);
+        _;
+        vm.stopPrank();
+    }
+
+        modifier useSeller(){
+        vm.startPrank(LP_SELLER);
+        _;
+        vm.stopPrank();
+    }
+
+        modifier prankFrom(address user){
+        vm.startPrank(user);
         _;
         vm.stopPrank();
     }
@@ -339,7 +355,7 @@ liqMarketSC.repayLoan{value:2}(0);
 assertEq(isRepaid, true);
 }
 
-function test_repayLoan_ShouldSetIsRepaidTrueedit() public {
+function test_repayLoan_TransferToLenderFailed_Revert() public {
 vm.startPrank(BORROWER);
 liqMarketSC.initializeDeal(LpTokenAddr, 0, 2, 1, 1);
 liqMarketSC.activateDeal(0);
@@ -393,22 +409,290 @@ liqMarketSC.claimCollateral(0);
 //AUCTION TESTS//
 ////////////////
 
-function test_startAuction_WhenAuctionDurationIsInvalid() public useBorrower {
+//////////////////
+//startAuction///
+////////////////
+
+function test_startAuction_WhenAuctionDurationIsInvalid() public {
 vm.expectRevert("Duration must be greater than 0");
 liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 0, true);
-
 }
 
-function test_startAuction_WhenCheckLiqudityOwnerFalse() public useBorrower {
+function test_startAuction_WhenImeddiatelySellPriceIsInvalid() public {
+vm.expectRevert("imeddiatelySellPrice must be positive number");
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 0, 1, 10, true);
+}
+
+function test_startAuction_WhenCheckLiqudityOwnerFalse() public {
 utils_setUnsuccessfulPath();
 vm.expectRevert("User does not owner of this lock");
 liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
 }
 
-function test_startAuction_WhenImeddiatelySellPriceIsInvalid() public useBorrower {
-vm.expectRevert("imeddiatelySellPrice must be positive number");
-liqMarketSC.startAuction(LpTokenAddr, 0, 1, 0, 1, 10, true);
+function test_startAuction_ShouldCreateNewAuction() public useSeller {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+( address owner, , , , , , , , , , , ) = liqMarketSC.auctions(0);
+assertEq(owner, LP_SELLER);
+}
+
+//should emit event
+
+function test_startAuction_ShouldAddAuctionId() public useSeller {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+uint256[] memory userAuctions = liqMarketSC.getUserAuction(LP_SELLER);
+assertEq(userAuctions.length, 1);
+}
+
+function test_startAuction_ShouldIncreaseAuctionId() public useSeller {
+uint256 nextAuctionIdBefore = liqMarketSC.nextAuctionId();
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+uint256 nextAuctionIdAfter = liqMarketSC.nextAuctionId();
+assertEq(nextAuctionIdBefore, nextAuctionIdAfter-1);
+}
+
+//given auction is active it should revert
+
+/////////////////////
+//activateAuction///
+///////////////////
+//name template
+function test_activateAuction_GivenAuctionIsActiveTrue_Revert() public {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+( , , , , , , , , ,bool isActive , , ) = liqMarketSC.auctions(0);
+assertEq(isActive, true);
+vm.expectRevert("Auction already active");
+liqMarketSC.activateAuction(0);
+}
+
+function test_activateAuction_GivenAuctionOwnerEqZeroAddress_Revert() public useBorrower{
+vm.expectRevert("Auction is empty");
+liqMarketSC.activateAuction(1);
+}
+
+function test_activateAuction_WhenCheckLiquidityOwnerFalse_Revert() public {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+utils_setUnsuccessfulPath();
+vm.expectRevert("Contract does not owner of this liquidity");
+liqMarketSC.activateAuction(0);
+}
+
+function test_activateAuction_ShouldSetIsActiveToTrue() public {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+( , , , , , , , , ,bool isActive , , ) = liqMarketSC.auctions(0);
+assertEq(isActive, true);
+}
+
+function test_activateAuction_ShouldSetAuctionStartTime() public {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+( , , , , , , , ,uint256 startTime , , , ) = liqMarketSC.auctions(0);
+assertEq(startTime, block.timestamp);
+}
+
+//it should emit the AuctionActivated event
+
+/////////////////////
+//immediatelyBuy///
+///////////////////
+function test_immediatelyBuy_GivenImmediatelySellFalse_Revert() public {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, false);
+liqMarketSC.activateAuction(0);
+vm.expectRevert("Immediately selling is disabled for this lottery");
+liqMarketSC.immediatelyBuy(0);
+}
+
+function test_immediatelyBuy_GivenAuctionOwnerEqCaller_Revert() public useSeller {
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.expectRevert("Sender is auction owner");
+liqMarketSC.immediatelyBuy(0);
+}
+
+function test_immediatelyBuy_WhenNotEnoughEth_Revert() public {
+vm.startPrank(LP_SELLER);    
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Insuffitient payable amount");
+liqMarketSC.immediatelyBuy{value:9}(0);
+}
+
+function test_immediatelyBuy_AuctionNotActivated_Revert() public {
+vm.startPrank(LP_SELLER);    
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Auction inactive");
+liqMarketSC.immediatelyBuy{value:10}(0);
+}
+
+function test_immediatelyBuy_AuctionEnded_Revert() public {
+vm.startPrank(LP_SELLER);    
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.warp(100);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Auction inactive");
+liqMarketSC.immediatelyBuy{value:10}(0);
+}
+
+function test_immediatelyBuy_AuctionAlredyFinishedImmediately_Revert() public {
+vm.startPrank(LP_SELLER);    
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.immediatelyBuy{value:10}(0);
+vm.expectRevert("Auction inactive");
+liqMarketSC.immediatelyBuy{value:10}(0);
+}
+
+
+//Given the immediatelySell statement is false
+// ....
+// ....
+
+/////////////
+//makeBid///
+///////////
+
+//given auction.isFinishedImmediately is true
+
+function test_makeBid_givenAuctionIsNotActive_Revert() public useBorrower{
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+vm.expectRevert("Auction inactive");
+liqMarketSC.makeBid(0);
 
 }
+
+//given auction.startTime and auction.duration is less than current timestamp
+
+function test_makeBid_givenAuctionOwnerEqToCaller_Revert() public useBorrower{
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.expectRevert("Sender is auction owner");
+liqMarketSC.makeBid(0);
+
+}
+
+function test_makeBid_WhenEthValueNotEnough_Revert() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 2, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Bid must be greater than previous + bidStep");
+liqMarketSC.makeBid{value:1}(0);
+
+}
+
+function test_makeBid_ShouldSetCallerBid() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+uint256 userBid = liqMarketSC.bids(0, LP_BUYER);
+assertEq(userBid, 1);
+}
+
+function test_makeBid_ShouldSetHighestBidOwner() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+( ,address  highestBidOwner, , , , , , , , , , ) = liqMarketSC.auctions(0);
+assertEq(highestBidOwner, LP_BUYER);
+}
+
+// it should emit the BidMade event
+
+
+//////////////////////////////
+//withdrawAuctionLiquidity///
+////////////////////////////
+//test should work but it's not becouse vuln in the codebase 
+// function test_withdrawAuctionLiquidity_AuctionHighestBidOwnerNotEqZeroAddress_Revert() public {
+// vm.startPrank(LP_SELLER);
+// liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+// liqMarketSC.activateAuction(0);
+// vm.startPrank(LP_BUYER);
+// liqMarketSC.makeBid{value:1}(0);
+// vm.startPrank(LP_BUYER_2);
+// liqMarketSC.makeBid{value:2}(0);
+// vm.warp(100);
+// vm.startPrank(LP_SELLER);
+// vm.expectRevert("Not claimable");
+// liqMarketSC.withdrawAuctionLiquidity(0);
+// }
+
+function test_withdrawAuctionLiquidity_AuctionStillActive_Revert() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+vm.startPrank(LP_BUYER_2);
+liqMarketSC.makeBid{value:2}(0);
+vm.startPrank(LP_SELLER);
+vm.expectRevert("Auction is active yet");
+liqMarketSC.withdrawAuctionLiquidity(0);
+}
+
+function test_withdrawAuctionLiquidity_CallerIsNotOwner_Revert() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+vm.startPrank(LP_BUYER_2);
+liqMarketSC.makeBid{value:2}(0);
+vm.warp(100);
+vm.startPrank(LP_BUYER_2);
+vm.expectRevert("Caller is not auction owner");
+liqMarketSC.withdrawAuctionLiquidity(0);
+}
+
+//////////////////
+//claimAuction///
+////////////////
+
+function test_claimAuction_AuctionStillActive_Revert() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+vm.startPrank(LP_BUYER_2);
+liqMarketSC.makeBid{value:2}(0);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Auction is active yet");
+liqMarketSC.claimAuction(0);
+}
+
+function test_claimAuction_AuctionIsFinishedImmediatelyTrue_Revert() public {
+vm.startPrank(LP_SELLER);    
+liqMarketSC.startAuction(LpTokenAddr, 0, 1, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.immediatelyBuy{value:10}(0);
+vm.expectRevert("Not eligible for claim");
+liqMarketSC.claimAuction(0);
+}
+
+function test_claimAuction_CallerIsNotHighestBidOwner_Revert() public {
+vm.startPrank(LP_SELLER);
+liqMarketSC.startAuction(LpTokenAddr, 0, 0, 10, 1, 10, true);
+liqMarketSC.activateAuction(0);
+vm.startPrank(LP_BUYER);
+liqMarketSC.makeBid{value:1}(0);
+vm.startPrank(LP_BUYER_2);
+liqMarketSC.makeBid{value:2}(0);
+vm.warp(100);
+vm.startPrank(LP_BUYER);
+vm.expectRevert("Not eligible for claim");
+liqMarketSC.claimAuction(0);
+}
+
 
 }

@@ -145,5 +145,6 @@ docs/
 .env
 
 /script/reentrancy_POC.sol
+/contracts/LiquidityMarketplace.sol
 
 

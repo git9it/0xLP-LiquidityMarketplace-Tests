@@ -383,6 +383,7 @@ contract LiquidityMarketplace is Ownable {
         // it should set feeAmount
         uint256 feeAmount = (deal.dealAmount * ownerFee) / 10000;
         // it should transfer feeAmount to the fee receiver
+        //@audit: it should skip fee transfer if fee == 0
         (bool feeSent, ) = payable(feeReceiver).call{value: feeAmount}("");
         // it should revert if transfer to the fee receiver failed
         require(feeSent, "Failed to send fee");
@@ -636,10 +637,10 @@ contract LiquidityMarketplace is Ownable {
         //# given the auction.owner is equal to caller it should revert
         require(auction.owner != msg.sender, "Sender is auction owner");
         //# when bid lower than previous bid plus bid step it should revert
-        console.log(bids[auctionId][msg.sender]);
-        console.log(bids[auctionId][msg.sender] + msg.value);
-        console.log(bids[auctionId][auction.highestBidOwner]);
-        console.log(bids[auctionId][auction.highestBidOwner] + auction.bidStep);
+        // console.log(bids[auctionId][msg.sender]);
+        // console.log(bids[auctionId][msg.sender] + msg.value);
+        // console.log(bids[auctionId][auction.highestBidOwner]);
+        // console.log(bids[auctionId][auction.highestBidOwner] + auction.bidStep);
         require(
             bids[auctionId][msg.sender] + msg.value >=
                 bids[auctionId][auction.highestBidOwner] + auction.bidStep,
@@ -726,8 +727,9 @@ contract LiquidityMarketplace is Ownable {
                 auction.startTime + auction.duration < block.timestamp,
             "Auction active yet"
         );
+
         //# given the auction.owner is not equal to caller it should revert
-        require(msg.sender == auction.owner, "Not eligible for claim");
+        require(msg.sender == auction.owner, "Not eligible for claim"); // The error message is unclear, causing confusion about the eligibility requirement.
         uint256 bidAmount = bids[auctionId][auction.highestBidOwner];
 
         uint256 feeAmount = (bidAmount * ownerFee) / 10000;

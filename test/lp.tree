@@ -138,41 +138,41 @@ LiquidityMarketplace.makeBid
     └── it should emit the BidMade event
 
 LiquidityMarketplace.withdrawAuctionLiquidity
-# given auction.startTime and auction.duration is more than current timestamp
-## it should revert
-# given auction.highestBidOwner is not equal to address zero or given auction.isFinishedImmediately is true
-## it should revert
-# given the auction.owner is not equal to caller
-## it should revert
+├── given auction.startTime and auction.duration is more than current timestamp
+│   └── it should revert
+├── given auction.highestBidOwner is not equal to address zero or given auction.isFinishedImmediately is true
+│   └── it should revert
+└── given the auction.owner is not equal to caller
+    └── it should revert
 
 LiquidityMarketplace.claimAuction
-# given auction.isFinishedImmediately is false or given auction.startTime and auction.duration is more than current timestamp
-## it should revert
-# given auction.highestBidOwner not equals to caller
-## it should revert
-# given auction.isFinishedImmediately is true
-## it should revert
-# given auction.isFinishedImmediately is false
-## it should emit the AuctionWon event
+├── given auction.isFinishedImmediately is false or given auction.startTime and auction.duration is more than current timestamp
+│   └── it should revert
+├── given auction.highestBidOwner not equals to caller
+│   └── it should revert
+├── given auction.isFinishedImmediately is true
+│   └── it should revert
+└── given auction.isFinishedImmediately is false
+    └── it should emit the AuctionWon event
 
 LiquidityMarketplace.claimAuctionReward
-# given auction.isFinishedImmediately is true
-## it should revert
-# given auction.startTime and auction.duration is more than current timestamp
-## it should revert
-# given auction.owner is not equal to caller
-## it should revert
-# given auction.owner is equal to caller
-## it should revert if transfer to the fee receiver is failed
-## it should revert if transfer to the caller is failed
-## it should emit the AuctionRewardClaimed event
+├── given auction.isFinishedImmediately is true
+│   └── it should revert
+├── given auction.startTime and auction.duration is more than current timestamp
+│   └── it should revert
+├── given auction.owner is not equal to caller
+│   └── it should revert
+└── given auction.owner is equal to caller
+    ├── it should revert if transfer to the fee receiver is failed
+    ├── it should revert if transfer to the caller is failed
+    └── it should emit the AuctionRewardClaimed event
 
 LiquidityMarketplace.withdrawBid
-# given auction.highestBidOwner equals to caller
-## it should revert
-# given bidAmount less than 1
-## it should revert
-# given bidAmount equal or more than 1
-## it should revert if transfer to the caller is failed
-## it should set caller bid to 0
-## it should emit the BidWithdrawn event
+├── given auction.highestBidOwner equals to caller
+│   └── it should revert
+├── given bidAmount less than 1
+│   └── it should revert
+└── given bidAmount equal or more than 1
+    ├── it should revert if transfer to the caller is failed
+    ├── it should set caller bid to 0
+    └── it should emit the BidWithdrawn event

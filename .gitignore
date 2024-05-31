@@ -144,7 +144,7 @@ docs/
 # Dotenv file
 .env
 
-/script/reentrancy_POC.sol
-/contracts/LiquidityMarketplace.sol
+script/
+
 
 
